@@ -33,11 +33,12 @@ HardwareSerial MAVLINK_UART(1);
 byte incomingBytes[RTCM_BUFFER_SIZE]; // Buffer for incoming bytes
 byte rtcmBuffer[RTCM_BUFFER_SIZE];    // Buffer for the captured message
 int incomingIndex = 0;                // Current index in incomingBytes
-int messageIndex = 0;                 // Current index in rtcmBuffer
+int rtcmIndex = 0;                 // Current index in rtcmBuffer
+u_int32_t lastRtcmMillis;             // How long since we received an rtcm message.
 
 // MAVLINK Variables.
 uint8_t _sequenceId;
-uint32_t heartbeatDetectedMillis; // how long has it been since we saw our first heartbeat (and play a tone or something).
+//uint32_t heartbeatDetectedMillis; // how long has it been since we saw our first heartbeat (and play a tone or something).
 uint32_t heartbeatMillis;
 
 void ReadRTCM()
@@ -67,21 +68,21 @@ void ReadRTCM()
         {
 
           // Reset the rtcmBuffer index
-          messageIndex = 0;
+          rtcmIndex = 0;
           memset(rtcmBuffer, 0, sizeof(rtcmBuffer));
 
           // Store the delimiter and all previous bytes in rtcmBuffer
-          if (messageIndex + incomingIndex <= RTCM_BUFFER_SIZE)
+          if (rtcmIndex + incomingIndex <= RTCM_BUFFER_SIZE)
           {
 
             // Store delimiter
-            rtcmBuffer[messageIndex++] = incomingBytes[i];
-            rtcmBuffer[messageIndex++] = incomingBytes[i + 1];
+            rtcmBuffer[rtcmIndex++] = incomingBytes[i];
+            rtcmBuffer[rtcmIndex++] = incomingBytes[i + 1];
 
             // Store all bytes before the delimiter
             for (int j = 0; j < i; j++)
             {
-              rtcmBuffer[messageIndex++] = incomingBytes[j];
+              rtcmBuffer[rtcmIndex++] = incomingBytes[j];
             }
           }
 
@@ -90,22 +91,23 @@ void ReadRTCM()
 
           // Optional: Print the stored message for debugging
           //          Serial.print("RTCM: ");
-          //          Serial.print(messageIndex);
+          //          Serial.print(rtcmIndex);
           //          Serial.print(" ");
-          //          for (int k = 0; k < messageIndex; k++) {
+          //          for (int k = 0; k < rtcmIndex; k++) {
           //            Serial.print(rtcmBuffer[k], HEX);
           //            Serial.print(" ");
           //          }
           //          Serial.println();
 
-          DumpRTCM3(messageIndex, rtcmBuffer);  
+          DumpRTCM3(rtcmIndex, rtcmBuffer);  
+          lastRtcmMillis = millis();  // update time since.  This really should only be updated if verified message in above function.
 
           // SEND THE MAVLINK MESSAGE NOW.  This should be a function of course.
           mavlink_message_t mavmsg;
           uint8_t buf[MAVLINK_MAX_PACKET_LEN];
 
           // Determine if we need to fragment the packet into smaller chunks.
-          if (messageIndex < 179)
+          if (rtcmIndex < 179)
           {
             // Fill the MAVLink message with the RTCM data
             mavlink_msg_gps_rtcm_data_pack(
@@ -113,7 +115,7 @@ void ReadRTCM()
                 COMPONENT_ID, // component id
                 &mavmsg,
                 (_sequenceId & 0x1F) << 3,
-                messageIndex, // data length
+                rtcmIndex, // data length
                 rtcmBuffer    // data
             );
 
@@ -128,9 +130,9 @@ void ReadRTCM()
             uint8_t fragmentId = 0; // Fragment id indicates the fragment within a set
             int start = 0;
 
-            while (start < messageIndex)
+            while (start < rtcmIndex)
             {
-              int l = std::min(messageIndex - start, 179);
+              int l = std::min(rtcmIndex - start, 179);
               uint8_t msgpart[l];
 
               uint8_t flags = 1;                  // LSB set indicates message is fragmented
@@ -171,7 +173,7 @@ void ReadRTCM()
 void SendMavlinkHeartbeat()
 {
 
-  if (millis() - heartbeatMillis > 1000)
+  if (millis() - heartbeatMillis > 1000 && lastRtcmMillis < 5000)
   {
 
     // Send HEARTBEAT message to serial once a second
@@ -190,7 +192,7 @@ void SendMavlinkHeartbeat()
   }
 }
 
-void RequestParam()
+void RequestParam() // for future use...
 {
 
   uint8_t target_system = 1;
@@ -211,9 +213,8 @@ void RequestParam()
   MAVLINK_UART.write(buf, len);
 }
 
-void ReadMAVLINK()
+void ReadMAVLINK() // probably not going to receive anything on a one way transmit only - but for testing locally we do.
 {
-
   // pieces taken from various online sources.
 
   mavlink_message_t msg;
@@ -330,7 +331,7 @@ void loop()
 
   ReadRTCM(); // Call the function to read and process RTCM data
 
-  ReadMAVLINK();
+  ReadMAVLINK();  // Call the function to see if there is anything on the mavlink port and handle it.
 
   //    if (millis() - heartbeatDetectedMillis > 900) {
   //      RequestParam();
