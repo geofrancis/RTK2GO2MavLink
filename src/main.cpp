@@ -314,12 +314,12 @@ void setup()
   Serial.println("Starting RTCM to MavLink...");
 
   // Configure RTCM_UART on pins TX=D6 and RX=D7
-  RTCM_UART.begin(57600, SERIAL_8N1, D7, D6);
+  RTCM_UART.begin(57600, SERIAL_8N1, 7, 6);
   delay(100);
   // RTCM_UART.print("RTCM_UART");
 
   // And configure MAVLINK_UART on pins RX=D9, TX=D10
-  MAVLINK_UART.begin(57600, SERIAL_8N1, D9, D10);
+  MAVLINK_UART.begin(57600, SERIAL_8N1, 9, 10);
   delay(100);
   // MAVLINK_UART.print("MAVLINK_UART");
 }
