@@ -25,7 +25,7 @@ int ledState = LOW;
 #define RTCM_MAX_FRAGMENTS 4  // Maximum number of fragments for an RTCM message
 
 #define SYSTEM_ID 255     // System ID For MAVLINK
-#define COMPONENT_ID 191  // Component ID for MAVLINK
+#define COMPONENT_ID 41  // Component ID for MAVLINK
 
 // RTCM Variables.
 byte incomingBytes[RTCM_BUFFER_SIZE];  // Buffer for incoming bytes
@@ -224,7 +224,7 @@ void ReadRTCM() {
 
 void SendMavlinkHeartbeat() {
 
-  if (millis() - heartbeatMillis > 1000 && lastRtcmMillis < 5000) {
+  if (millis() - heartbeatMillis > 1000 ) {
 
     // Send HEARTBEAT message to serial once a second
     mavlink_message_t msg;
