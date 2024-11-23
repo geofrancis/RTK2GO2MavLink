@@ -6,3 +6,5 @@ requires https://github.com/GLAY-AK2/NTRIP-client-for-Arduino
 and https://github.com/mavlink/c_library_v2      
 
 serial output is pin 10.
+
+#NOT WORKING see https://discuss.ardupilot.org/t/rtk-without-mavlink-via-gps2-port/125131/10
