@@ -9,7 +9,7 @@ HardwareSerial MySerial0(0);
 HardwareSerial MAVLINK_UART(1);
 
 const char* ssid = "2.4GN";
-const char* password = "passw0rded";
+const char* password = "password";
 
 char* host = "rtk2go.com";
 int httpPort = 2101;  //port 2101 is default port of NTRIP caster
@@ -20,12 +20,12 @@ NTRIPClient ntrip_c;
 int ledState = LOW;
 
 
-#include <NTRIPClient.h>
+
 #define RTCM_BUFFER_SIZE 720
 #define RTCM_MAX_FRAGMENTS 4  // Maximum number of fragments for an RTCM message
 
 #define SYSTEM_ID 255     // System ID For MAVLINK
-#define COMPONENT_ID 41  // Component ID for MAVLINK
+#define COMPONENT_ID 191  // Component ID for MAVLINK
 
 // RTCM Variables.
 byte incomingBytes[RTCM_BUFFER_SIZE];  // Buffer for incoming bytes
@@ -90,7 +90,7 @@ void loop() {
 
   SendMavlinkHeartbeat();
   ReadRTCM();
-  ReadMAVLINK();
+
 }
 
 
@@ -136,14 +136,6 @@ void ReadRTCM() {
           // Reset the incomingIndex to start over after the delimiter
           incomingIndex = 0;
 
-          if (ledState == LOW) {
-            ledState = HIGH;
-          } else {
-            ledState = LOW;
-          }
-
-          // set the LED with the ledState of the variable:
-          digitalWrite(8, ledState);
 
           //Optional: Print the stored message for debugging
           //Serial.print("RTCM: ");
@@ -173,9 +165,19 @@ void ReadRTCM() {
               rtcmIndex,  // data length
               rtcmBuffer  // data
             );
+          if (ledState == LOW) {
+            ledState = HIGH;
+          } else {
+            ledState = LOW;
+          }
+
+          // set the LED with the ledState of the variable:
+          digitalWrite(8, ledState);
 
             uint16_t len = mavlink_msg_to_send_buffer(buf, &mavmsg);
             MAVLINK_UART.write(buf, len);
+
+            
           } else {
 
             // We need to fragment - ToDO: SHOULD WARN IF > RTCM_MAX_FRAGMENTS which probably never happens but just in case.
@@ -224,9 +226,10 @@ void ReadRTCM() {
 
 void SendMavlinkHeartbeat() {
 
-  if (millis() - heartbeatMillis > 1000 ) {
+  if (millis() - heartbeatMillis > 1000) {
 
     // Send HEARTBEAT message to serial once a second
+    Serial.println("Heartbeat");
     mavlink_message_t msg;
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
 
@@ -239,117 +242,5 @@ void SendMavlinkHeartbeat() {
     MAVLINK_UART.write(buf, len);
 
     heartbeatMillis = millis();
-  }
-}
-
-void RequestParam()  // for future use...
-{
-
-  uint8_t target_system = 1;
-  uint8_t target_component = 0;
-
-  // Send REQUEST message to Serial
-  mavlink_message_t msg;
-  uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-
-  // Pack
-  //  uint16_t mavlink_msg_param_request_read_pack(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg,
-  //                               uint8_t target_system, uint8_t target_component, const char *param_id, int16_t param_index)
-  //
-  mavlink_msg_param_request_read_pack(SYSTEM_ID, COMPONENT_ID, &msg, target_system, target_component, "GPS_DRV_OPTIONS", -1);
-  uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
-
-  // Send
-  MAVLINK_UART.write(buf, len);
-}
-
-
-
-void ReadMAVLINK()  // probably not going to receive anything on a one way transmit only - but for testing locally we do.
-{
-  // pieces taken from various online sources.
-
-  mavlink_message_t msg;
-  mavlink_status_t status;
-
-  while (MAVLINK_UART.available() > 0) {
-    uint8_t c = MAVLINK_UART.read();
-
-    // Try to get a new message
-    if (mavlink_parse_char(MAVLINK_COMM_0, c, &msg, &status)) {
-
-      Serial.printf("MavMsg->(%d), Seq: %d CMPID:%d SYSID:%d\n", msg.msgid, msg.seq, msg.compid, msg.sysid);
-
-      // Handle message
-      switch (msg.msgid) {
-        case MAVLINK_MSG_ID_HEARTBEAT:  // #0: Heartbeat
-          {
-            // E.g. read GCS heartbeat and go into
-            // comm lost mode if timer times out
-            // Serial.println("Heartbeat.");
-          }
-          break;
-
-        case MAVLINK_MSG_ID_SYS_STATUS:  // #1: SYS_STATUS
-          {
-            /* Message decoding: PRIMITIVE
-              mavlink_msg_sys_status_decode(const mavlink_message_t* msg, mavlink_sys_status_t* sys_status)
-        */
-            mavlink_message_t* msg;
-            mavlink_sys_status_t sys_status;
-
-            // mavlink_msg_sys_status_decode(&msg, &sys_status);
-            //            Serial.print("PX SYS STATUS: ");
-            //            Serial.print("[Bat (V): ");
-            //            Serial.print(sys_status.voltage_battery);
-            //            Serial.print("], [Bat (A): ");
-            //            Serial.print(sys_status.current_battery);
-            //            Serial.print("], [Comms loss (%): ");
-            //            Serial.print(sys_status.drop_rate_comm);
-            //            Serial.println("]");
-          }
-          break;
-
-        case MAVLINK_MSG_ID_PARAM_VALUE:  // #22: PARAM_VALUE
-          {
-            /* Message decoding: PRIMITIVE
-              mavlink_msg_param_value_decode(const mavlink_message_t* msg, mavlink_param_value_t* param_value)
-        */
-            // mavlink_message_t* msg;
-            mavlink_param_value_t param_value;
-            mavlink_msg_param_value_decode(&msg, &param_value);
-
-            Serial.printf("PARAM Received: %s\n", &param_value.param_id);
-          }
-          break;
-
-        case MAVLINK_MSG_ID_RAW_IMU:  // #27: RAW_IMU
-          {
-            /* Message decoding: PRIMITIVE
-              static inline void mavlink_msg_raw_imu_decode(const mavlink_message_t* msg, mavlink_raw_imu_t* raw_imu)
-        */
-            mavlink_raw_imu_t raw_imu;
-            mavlink_msg_raw_imu_decode(&msg, &raw_imu);
-          }
-          break;
-
-        case MAVLINK_MSG_ID_ATTITUDE:  // #30
-          {
-            /* Message decoding: PRIMITIVE
-              mavlink_msg_attitude_decode(const mavlink_message_t* msg, mavlink_attitude_t* attitude)
-        */
-            mavlink_attitude_t attitude;
-            mavlink_msg_attitude_decode(&msg, &attitude);
-
-            //            if(attitude.roll>1) leds_modo = 0;
-            //            else if(attitude.roll<-1) leds_modo = 2;
-            //            else leds_modo=1;
-          }
-          break;
-
-        default:
-          break;
-      }
-    }
   }
 }
